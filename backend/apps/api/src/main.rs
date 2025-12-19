@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                //                .unwrap_or_else(|_| "api=debug,pow=debug,tower_http=debug".into()),
+                //.unwrap_or_else(|_| "api=debug,pow=debug,tower_http=debug".into()),
                 .unwrap_or_else(|_| "api=info,pow=info,tower_http=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
@@ -56,6 +56,26 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     tracing::info!("Migrations completed");
+
+    // Startup cleanup: remove expired PoW data
+    // Errors here should not prevent server startup
+    let pow_store_for_cleanup = PowStore::new(pool.clone());
+    match pow_store_for_cleanup.cleanup_expired().await {
+        Ok((challenges, sessions, rate_limits)) => {
+            tracing::info!(
+                challenges_deleted = challenges,
+                sessions_deleted = sessions,
+                rate_limits_deleted = rate_limits,
+                "Startup cleanup completed"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Startup cleanup failed, continuing anyway"
+            );
+        }
+    }
 
     // PoW configuration
     let pow_config = if cfg!(debug_assertions) {
