@@ -121,3 +121,13 @@ impl IntoResponse for PowError {
         (status, ()).into_response()
     }
 }
+
+impl From<platform::client::FingerprintError> for PowError {
+    fn from(err: platform::client::FingerprintError) -> Self {
+        match err {
+            platform::client::FingerprintError::MissingHeader(header) => {
+                PowError::MissingHeader(header)
+            }
+        }
+    }
+}

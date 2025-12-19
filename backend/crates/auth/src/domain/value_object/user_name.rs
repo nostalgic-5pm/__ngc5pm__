@@ -230,20 +230,29 @@ impl std::error::Error for UserNameError {}
 /// - Contains at least one alphanumeric character
 /// - Not a reserved word
 ///
-/// # Canonical Form
-/// - NFKC normalized
-/// - Trimmed
-/// - Lowercase
+/// # Storage
+/// - `original`: The user's input (trimmed, NFKC normalized, preserves case)
+/// - `canonical`: Lowercase form for uniqueness checks
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
-pub struct UserName(String);
+pub struct UserName {
+    /// Original user input (preserves case)
+    original: String,
+    /// Canonical form (lowercase) for uniqueness
+    canonical: String,
+}
 
 impl UserName {
     /// Create a new UserName from raw input
     ///
-    /// Applies normalization (NFKC, trim, lowercase) and validates.
-    pub fn new(input: impl AsRef<str>) -> Result<Self, UserNameError> {
-        Self::new_with_reserved(input, DEFAULT_RESERVED_WORDS)
+    /// Applies normalization (NFKC, trim) and validates.
+    /// Preserves case in original, stores lowercase in canonical.
+    pub fn new(
+        input: impl AsRef<str>,
+        reserved_words: Option<&[&str]>,
+    ) -> Result<Self, UserNameError> {
+        let reserved = reserved_words.unwrap_or(DEFAULT_RESERVED_WORDS);
+        Self::new_with_reserved(input, reserved)
     }
 
     /// Create a new UserName with custom reserved words list
@@ -254,31 +263,56 @@ impl UserName {
         input: impl AsRef<str>,
         reserved_words: &[&str],
     ) -> Result<Self, UserNameError> {
-        let canonical = Self::normalize(input.as_ref());
+        let original = Self::normalize_original(input.as_ref());
+        let canonical = original.to_lowercase();
         Self::validate(&canonical, reserved_words)?;
-        Ok(Self(canonical))
+        Ok(Self {
+            original,
+            canonical,
+        })
+    }
+
+    /// Get the original user name (preserves case)
+    #[inline]
+    pub fn original(&self) -> &str {
+        &self.original
     }
 
     /// Get the canonical (normalized, lowercase) user name
     #[inline]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn canonical(&self) -> &str {
+        &self.canonical
     }
 
-    /// Convert to owned String
+    /// Alias for canonical() for compatibility
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        &self.canonical
+    }
+
+    /// Convert to owned String (canonical form)
     #[inline]
     pub fn into_inner(self) -> String {
-        self.0
+        self.canonical
     }
 
-    /// Normalize input string to canonical form
-    ///
-    /// Steps:
-    /// 1. NFKC normalization (handles unicode variants)
-    /// 2. Trim unicode whitespace
-    /// 3. Convert to lowercase
+    /// Create from database values (assumes already validated)
+    pub fn from_db(original: &str) -> Result<Self, UserNameError> {
+        let canonical = original.to_lowercase();
+        Ok(Self {
+            original: original.to_string(),
+            canonical,
+        })
+    }
+
+    /// Normalize input string (trim and NFKC, preserve case)
+    fn normalize_original(input: &str) -> String {
+        input.nfkc().collect::<String>().trim().to_string()
+    }
+
+    /// Normalize input string to canonical form (lowercase)
     fn normalize(input: &str) -> String {
-        input.nfkc().collect::<String>().trim().to_lowercase()
+        Self::normalize_original(input).to_lowercase()
     }
 
     /// Validate the normalized user name
@@ -376,19 +410,22 @@ impl UserName {
 
 impl fmt::Debug for UserName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("UserName").field(&self.0).finish()
+        f.debug_struct("UserName")
+            .field("original", &self.original)
+            .field("canonical", &self.canonical)
+            .finish()
     }
 }
 
 impl fmt::Display for UserName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.original)
     }
 }
 
 impl AsRef<str> for UserName {
     fn as_ref(&self) -> &str {
-        &self.0
+        &self.canonical
     }
 }
 
@@ -396,7 +433,7 @@ impl TryFrom<String> for UserName {
     type Error = UserNameError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::new(value, None)
     }
 }
 
@@ -404,13 +441,13 @@ impl TryFrom<&str> for UserName {
     type Error = UserNameError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::new(value, None)
     }
 }
 
 impl From<UserName> for String {
     fn from(name: UserName) -> Self {
-        name.0
+        name.original
     }
 }
 
@@ -427,26 +464,26 @@ mod tests {
 
         #[test]
         fn test_trim_whitespace() {
-            let name = UserName::new("  alice  ").unwrap();
+            let name = UserName::new("  alice  ", None).unwrap();
             assert_eq!(name.as_str(), "alice");
         }
 
         #[test]
         fn test_lowercase() {
-            let name = UserName::new("ALICE").unwrap();
+            let name = UserName::new("ALICE", None).unwrap();
             assert_eq!(name.as_str(), "alice");
         }
 
         #[test]
         fn test_mixed_case() {
-            let name = UserName::new("AlIcE_123").unwrap();
+            let name = UserName::new("AlIcE_123", None).unwrap();
             assert_eq!(name.as_str(), "alice_123");
         }
 
         #[test]
         fn test_nfkc_normalization() {
             // Full-width 'Ａ' (U+FF21) should normalize to 'a' (lowercase)
-            let name = UserName::new("Ａlice");
+            let name = UserName::new("Ａlice", None);
             // Full-width characters become ASCII after NFKC
             assert!(name.is_ok());
             assert_eq!(name.unwrap().as_str(), "alice");
@@ -455,9 +492,10 @@ mod tests {
         #[test]
         fn test_idempotent() {
             let input = "  AlIcE_123  ";
-            let first = UserName::new(input).unwrap();
-            let second = UserName::new(first.as_str()).unwrap();
-            assert_eq!(first, second);
+            let first = UserName::new(input, None).unwrap();
+            let second = UserName::new(first.as_str(), None).unwrap();
+            // canonical forms should be equal
+            assert_eq!(first.canonical(), second.canonical());
         }
     }
 
@@ -466,25 +504,28 @@ mod tests {
 
         #[test]
         fn test_empty_fails() {
-            assert!(matches!(UserName::new(""), Err(UserNameError::Empty)));
+            assert!(matches!(UserName::new("", None), Err(UserNameError::Empty)));
         }
 
         #[test]
         fn test_whitespace_only_fails() {
-            assert!(matches!(UserName::new("   "), Err(UserNameError::Empty)));
+            assert!(matches!(
+                UserName::new("   ", None),
+                Err(UserNameError::Empty)
+            ));
         }
 
         #[test]
         fn test_too_short() {
             assert!(matches!(
-                UserName::new("ab"),
+                UserName::new("ab", None),
                 Err(UserNameError::TooShort { length: 2, min: 3 })
             ));
         }
 
         #[test]
         fn test_minimum_length() {
-            let name = UserName::new("abc");
+            let name = UserName::new("abc", None);
             assert!(name.is_ok());
             assert_eq!(name.unwrap().as_str(), "abc");
         }
@@ -492,7 +533,7 @@ mod tests {
         #[test]
         fn test_maximum_length() {
             let input = "a".repeat(USER_NAME_MAX_LENGTH);
-            let name = UserName::new(&input);
+            let name = UserName::new(&input, None);
             assert!(name.is_ok());
         }
 
@@ -500,7 +541,7 @@ mod tests {
         fn test_too_long() {
             let input = "a".repeat(USER_NAME_MAX_LENGTH + 1);
             assert!(matches!(
-                UserName::new(&input),
+                UserName::new(&input, None),
                 Err(UserNameError::TooLong { .. })
             ));
         }
@@ -511,33 +552,33 @@ mod tests {
 
         #[test]
         fn test_valid_alphanumeric() {
-            assert!(UserName::new("alice123").is_ok());
+            assert!(UserName::new("alice123", None).is_ok());
         }
 
         #[test]
         fn test_valid_underscore() {
-            assert!(UserName::new("alice_bob").is_ok());
+            assert!(UserName::new("alice_bob", None).is_ok());
         }
 
         #[test]
         fn test_valid_dot() {
-            assert!(UserName::new("alice.bob").is_ok());
+            assert!(UserName::new("alice.bob", None).is_ok());
         }
 
         #[test]
         fn test_valid_hyphen() {
-            assert!(UserName::new("alice-bob").is_ok());
+            assert!(UserName::new("alice-bob", None).is_ok());
         }
 
         #[test]
         fn test_valid_plus() {
-            assert!(UserName::new("alice+tag").is_ok());
+            assert!(UserName::new("alice+tag", None).is_ok());
         }
 
         #[test]
         fn test_invalid_special_char() {
             assert!(matches!(
-                UserName::new("alice@bob"),
+                UserName::new("alice@bob", None),
                 Err(UserNameError::InvalidCharacter { char: '@', .. })
             ));
         }
@@ -546,7 +587,7 @@ mod tests {
         fn test_invalid_unicode() {
             // Japanese characters are not allowed
             assert!(matches!(
-                UserName::new("日本語"),
+                UserName::new("日本語", None),
                 Err(UserNameError::InvalidCharacter { .. })
             ));
         }
@@ -554,7 +595,7 @@ mod tests {
         #[test]
         fn test_invalid_emoji() {
             assert!(matches!(
-                UserName::new("alice🎉"),
+                UserName::new("alice🎉", None),
                 Err(UserNameError::InvalidCharacter { .. })
             ));
         }
@@ -565,23 +606,23 @@ mod tests {
 
         #[test]
         fn test_start_with_letter() {
-            assert!(UserName::new("alice").is_ok());
+            assert!(UserName::new("alice", None).is_ok());
         }
 
         #[test]
         fn test_start_with_digit() {
-            assert!(UserName::new("123alice").is_ok());
+            assert!(UserName::new("123alice", None).is_ok());
         }
 
         #[test]
         fn test_start_with_underscore() {
-            assert!(UserName::new("_alice").is_ok());
+            assert!(UserName::new("_alice", None).is_ok());
         }
 
         #[test]
         fn test_start_with_dot_fails() {
             assert!(matches!(
-                UserName::new(".alice"),
+                UserName::new(".alice", None),
                 Err(UserNameError::InvalidStart { char: '.' })
             ));
         }
@@ -589,7 +630,7 @@ mod tests {
         #[test]
         fn test_start_with_hyphen_fails() {
             assert!(matches!(
-                UserName::new("-alice"),
+                UserName::new("-alice", None),
                 Err(UserNameError::InvalidStart { char: '-' })
             ));
         }
@@ -597,30 +638,30 @@ mod tests {
         #[test]
         fn test_start_with_plus_fails() {
             assert!(matches!(
-                UserName::new("+alice"),
+                UserName::new("+alice", None),
                 Err(UserNameError::InvalidStart { char: '+' })
             ));
         }
 
         #[test]
         fn test_end_with_letter() {
-            assert!(UserName::new("alice").is_ok());
+            assert!(UserName::new("alice", None).is_ok());
         }
 
         #[test]
         fn test_end_with_digit() {
-            assert!(UserName::new("alice123").is_ok());
+            assert!(UserName::new("alice123", None).is_ok());
         }
 
         #[test]
         fn test_end_with_underscore() {
-            assert!(UserName::new("alice_").is_ok());
+            assert!(UserName::new("alice_", None).is_ok());
         }
 
         #[test]
         fn test_end_with_dot_fails() {
             assert!(matches!(
-                UserName::new("alice."),
+                UserName::new("alice.", None),
                 Err(UserNameError::InvalidEnd { char: '.' })
             ));
         }
@@ -628,7 +669,7 @@ mod tests {
         #[test]
         fn test_end_with_hyphen_fails() {
             assert!(matches!(
-                UserName::new("alice-"),
+                UserName::new("alice-", None),
                 Err(UserNameError::InvalidEnd { char: '-' })
             ));
         }
@@ -636,7 +677,7 @@ mod tests {
         #[test]
         fn test_end_with_plus_fails() {
             assert!(matches!(
-                UserName::new("alice+"),
+                UserName::new("alice+", None),
                 Err(UserNameError::InvalidEnd { char: '+' })
             ));
         }
@@ -648,20 +689,20 @@ mod tests {
         #[test]
         fn test_consecutive_dots_fails() {
             assert!(matches!(
-                UserName::new("alice..bob"),
+                UserName::new("alice..bob", None),
                 Err(UserNameError::ConsecutiveDots)
             ));
         }
 
         #[test]
         fn test_single_dots_ok() {
-            assert!(UserName::new("alice.bob.charlie").is_ok());
+            assert!(UserName::new("alice.bob.charlie", None).is_ok());
         }
 
         #[test]
         fn test_symbols_only_fails() {
             assert!(matches!(
-                UserName::new("___"),
+                UserName::new("___", None),
                 Err(UserNameError::NoAlphanumeric)
             ));
         }
@@ -670,7 +711,7 @@ mod tests {
         fn test_whitespace_in_middle_fails() {
             // Note: After NFKC normalization and trim, internal spaces remain
             // But they're not valid ASCII chars
-            let result = UserName::new("alice bob");
+            let result = UserName::new("alice bob", None);
             assert!(matches!(
                 result,
                 Err(UserNameError::ContainsWhitespace)
@@ -685,7 +726,7 @@ mod tests {
         #[test]
         fn test_reserved_admin() {
             assert!(matches!(
-                UserName::new("admin"),
+                UserName::new("admin", None),
                 Err(UserNameError::Reserved { word }) if word == "admin"
             ));
         }
@@ -693,7 +734,7 @@ mod tests {
         #[test]
         fn test_reserved_case_insensitive() {
             assert!(matches!(
-                UserName::new("ADMIN"),
+                UserName::new("ADMIN", None),
                 Err(UserNameError::Reserved { word }) if word == "admin"
             ));
         }
@@ -701,7 +742,7 @@ mod tests {
         #[test]
         fn test_reserved_root() {
             assert!(matches!(
-                UserName::new("root"),
+                UserName::new("root", None),
                 Err(UserNameError::Reserved { .. })
             ));
         }
@@ -709,7 +750,7 @@ mod tests {
         #[test]
         fn test_reserved_api() {
             assert!(matches!(
-                UserName::new("api"),
+                UserName::new("api", None),
                 Err(UserNameError::Reserved { .. })
             ));
         }
@@ -738,7 +779,7 @@ mod tests {
 
         #[test]
         fn test_serialize() {
-            let name = UserName::new("alice").unwrap();
+            let name = UserName::new("alice", None).unwrap();
             let json = serde_json::to_string(&name).unwrap();
             assert_eq!(json, "\"alice\"");
         }
@@ -770,14 +811,16 @@ mod tests {
 
         #[test]
         fn test_display() {
-            let name = UserName::new("alice").unwrap();
+            let name = UserName::new("alice", None).unwrap();
             assert_eq!(format!("{}", name), "alice");
         }
 
         #[test]
         fn test_debug() {
-            let name = UserName::new("alice").unwrap();
-            assert_eq!(format!("{:?}", name), "UserName(\"alice\")");
+            let name = UserName::new("alice", None).unwrap();
+            let debug = format!("{:?}", name);
+            assert!(debug.contains("UserName"));
+            assert!(debug.contains("alice"));
         }
     }
 
@@ -798,14 +841,14 @@ mod tests {
 
         #[test]
         fn test_into_string() {
-            let name = UserName::new("alice").unwrap();
+            let name = UserName::new("alice", None).unwrap();
             let s: String = name.into();
             assert_eq!(s, "alice");
         }
 
         #[test]
         fn test_as_ref() {
-            let name = UserName::new("alice").unwrap();
+            let name = UserName::new("alice", None).unwrap();
             let s: &str = name.as_ref();
             assert_eq!(s, "alice");
         }

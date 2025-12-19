@@ -4,6 +4,7 @@
 //! Uses `anyhow` for startup errors, but application-level
 //! errors should use `kernel::error::AppError`.
 
+use auth::PgAuthRepository;
 use axum::{
     Router, http,
     http::{Method, header},
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 //.unwrap_or_else(|_| "api=debug,pow=debug,tower_http=debug".into()),
-                .unwrap_or_else(|_| "api=info,pow=info,tower_http=info".into()),
+                .unwrap_or_else(|_| "api=info,auth=info,pow=info,tower_http=info".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -66,13 +67,29 @@ async fn main() -> anyhow::Result<()> {
                 challenges_deleted = challenges,
                 sessions_deleted = sessions,
                 rate_limits_deleted = rate_limits,
-                "Startup cleanup completed"
+                "POW session cleanup completed"
             );
         }
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "Startup cleanup failed, continuing anyway"
+                "POW session cleanup failed, continuing anyway"
+            );
+        }
+    }
+
+    let auth_store_for_cleanup = PgAuthRepository::new(pool.clone());
+    match auth_store_for_cleanup.cleanup_expired().await {
+        Ok(sessions) => {
+            tracing::info!(
+                sessions_deleted = sessions,
+                "Auth session cleanup completed"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Auth session cleanup failed, continuing anyway"
             );
         }
     }

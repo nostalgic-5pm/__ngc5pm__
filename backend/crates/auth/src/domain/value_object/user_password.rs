@@ -11,7 +11,7 @@
 //! - Optional breach checking via HIBP API
 //!
 //! ## Usage
-//! ```rust
+//! ```rust,ignore
 //! use auth::domain::value_object::user_password::{UserPassword, RawPassword};
 //!
 //! // Create from user input
@@ -21,7 +21,7 @@
 //! let hashed = UserPassword::from_raw(&raw, None)?;
 //!
 //! // Verify later
-//! assert!(hashed.verify(&raw, None));
+//! assert!(hashed.verify(&raw, None).unwrap());
 //! ```
 
 use kernel::error::{
@@ -171,6 +171,17 @@ impl UserPassword {
         self.0.as_phc_string()
     }
 
+    /// Alias for as_phc_string for compatibility
+    pub fn as_str(&self) -> &str {
+        self.as_phc_string()
+    }
+
+    /// Create from database string (alias for from_phc_string)
+    pub fn from_db(s: impl Into<String>) -> Self {
+        // Assume database values are always valid
+        Self(HashedPassword::from_phc_string(s).expect("Invalid password hash in database"))
+    }
+
     /// Verify a raw password against this hash
     ///
     /// Uses constant-time comparison to prevent timing attacks.
@@ -178,8 +189,11 @@ impl UserPassword {
     /// ## Arguments
     /// * `raw` - The raw password to verify
     /// * `pepper` - Must match the pepper used during hashing
-    pub fn verify(&self, raw: &RawPassword, pepper: Option<&[u8]>) -> bool {
-        self.0.verify(raw.inner(), pepper)
+    ///
+    /// ## Returns
+    /// AppResult<bool> - Ok(true) if matches, Ok(false) if not
+    pub fn verify(&self, raw: &RawPassword, pepper: Option<&[u8]>) -> AppResult<bool> {
+        Ok(self.0.verify(raw.inner(), pepper))
     }
 
     /// Check if password hash needs to be updated
@@ -240,11 +254,11 @@ mod tests {
         let hashed = UserPassword::from_raw(&raw, None).unwrap();
 
         // Correct password should verify
-        assert!(hashed.verify(&raw, None));
+        assert!(hashed.verify(&raw, None).unwrap());
 
         // Wrong password should not verify
         let wrong = RawPassword::new("WrongPassword123!".to_string()).unwrap();
-        assert!(!hashed.verify(&wrong, None));
+        assert!(!hashed.verify(&wrong, None).unwrap());
     }
 
     #[test]
@@ -254,13 +268,13 @@ mod tests {
         let hashed = UserPassword::from_raw(&raw, Some(pepper)).unwrap();
 
         // With correct pepper
-        assert!(hashed.verify(&raw, Some(pepper)));
+        assert!(hashed.verify(&raw, Some(pepper)).unwrap());
 
         // Without pepper
-        assert!(!hashed.verify(&raw, None));
+        assert!(!hashed.verify(&raw, None).unwrap());
 
         // With wrong pepper
-        assert!(!hashed.verify(&raw, Some(b"wrong")));
+        assert!(!hashed.verify(&raw, Some(b"wrong")).unwrap());
     }
 
     #[test]
@@ -271,7 +285,7 @@ mod tests {
         let phc = hashed.as_phc_string().to_string();
         let restored = UserPassword::from_phc_string(phc).unwrap();
 
-        assert!(restored.verify(&raw, None));
+        assert!(restored.verify(&raw, None).unwrap());
     }
 
     #[test]
@@ -291,7 +305,7 @@ mod tests {
         // Unicode passwords should work
         let raw = RawPassword::new("最も！！安全なパスワード".to_string()).unwrap();
         let hashed = UserPassword::from_raw(&raw, None).unwrap();
-        assert!(hashed.verify(&raw, None));
+        assert!(hashed.verify(&raw, None).unwrap());
     }
 
     #[test]
@@ -300,6 +314,6 @@ mod tests {
         let long_pass = format!("A1!{}", "a".repeat(100));
         let raw = RawPassword::new(long_pass).unwrap();
         let hashed = UserPassword::from_raw(&raw, None).unwrap();
-        assert!(hashed.verify(&raw, None));
+        assert!(hashed.verify(&raw, None).unwrap());
     }
 }

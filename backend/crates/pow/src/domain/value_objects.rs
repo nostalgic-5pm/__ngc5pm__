@@ -2,24 +2,8 @@
 //!
 //! Immutable value types for the PoW domain.
 
-use std::net::IpAddr;
-
-/// Client fingerprint - derived from User-Agent header
-#[derive(Debug, Clone)]
-pub struct ClientFingerprint {
-    pub hash: [u8; 32],
-    pub ip: Option<IpAddr>,
-}
-
-impl ClientFingerprint {
-    pub fn new(hash: [u8; 32], ip: Option<IpAddr>) -> Self {
-        Self { hash, ip }
-    }
-
-    pub fn hash_vec(&self) -> Vec<u8> {
-        self.hash.to_vec()
-    }
-}
+/// Re-export ClientFingerprint from platform
+pub use platform::client::ClientFingerprint;
 
 /// Difficulty level for PoW
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

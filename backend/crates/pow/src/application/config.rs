@@ -4,6 +4,9 @@
 
 use std::time::Duration;
 
+/// Re-export SameSite from platform
+pub use platform::cookie::SameSite;
+
 /// PoW application configuration
 #[derive(Debug, Clone)]
 pub struct PowConfig {
@@ -27,14 +30,6 @@ pub struct PowConfig {
     pub cookie_secure: bool,
     /// SameSite policy
     pub cookie_same_site: SameSite,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SameSite {
-    Strict,
-    #[default]
-    Lax,
-    None,
 }
 
 impl Default for PowConfig {

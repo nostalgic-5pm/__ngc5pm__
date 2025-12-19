@@ -5,14 +5,13 @@ use crate::application::config::{PowConfig, SameSite};
 use crate::application::issue_challenge::IssueChallengeUseCase;
 use crate::application::submit_solution::{SubmitSolutionInput, SubmitSolutionUseCase};
 use crate::domain::repository::{ChallengeRepository, PowSessionRepository, RateLimitRepository};
-use crate::domain::value_objects::ClientFingerprint;
-use crate::error::{PowError, PowResult};
+use crate::error::PowResult;
 use crate::presentation::dto::{ChallengeResponse, StatusResponse, SubmitRequest};
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::IntoResponse;
-use std::net::IpAddr;
+use platform::client::{extract_client_ip, extract_fingerprint};
 use std::sync::Arc;
 
 /// Shared state for PoW handlers
@@ -29,32 +28,6 @@ where
 {
     pub repo: Arc<R>,
     pub config: Arc<PowConfig>,
-}
-
-/// Extract client fingerprint from request headers
-pub fn extract_fingerprint(
-    headers: &HeaderMap,
-    client_ip: Option<IpAddr>,
-) -> PowResult<ClientFingerprint> {
-    let user_agent = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| PowError::MissingHeader("User-Agent".to_string()))?;
-
-    let hash = platform::crypto::sha256(user_agent.as_bytes());
-
-    Ok(ClientFingerprint::new(hash, client_ip))
-}
-
-/// Extract client IP from headers
-pub fn extract_client_ip(headers: &HeaderMap, direct_ip: Option<IpAddr>) -> Option<IpAddr> {
-    if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
-        && let Some(first_ip) = xff.split(',').next()
-        && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
-    {
-        return Some(ip);
-    }
-    direct_ip
 }
 
 /// GET /api/pow/challenge

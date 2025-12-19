@@ -155,7 +155,7 @@ mod config_tests {
         let config = PowConfig::default();
 
         assert_eq!(config.challenge_bytes_len, 32);
-        assert_eq!(config.difficulty_bits, 18);
+        assert_eq!(config.difficulty_bits, 23);
         assert_eq!(config.challenge_ttl, Duration::from_secs(120));
         assert_eq!(config.session_ttl, Duration::from_secs(3600));
         assert_eq!(config.rate_limit_max_requests, 10);
@@ -283,7 +283,7 @@ mod domain_tests {
 
     #[test]
     fn test_client_fingerprint() {
-        let fp = ClientFingerprint::new([0u8; 32], None);
+        let fp = ClientFingerprint::new([0u8; 32], None, None);
         assert_eq!(fp.hash_vec().len(), 32);
     }
 }

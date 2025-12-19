@@ -1,5 +1,6 @@
 use kernel::id::Id;
 
+#[derive(Clone, Copy)]
 pub struct UserMarker;
 pub type UserId = Id<UserMarker>;
 

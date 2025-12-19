@@ -3,11 +3,12 @@
 use crate::application::check_session::CheckPowSessionUseCase;
 use crate::application::config::PowConfig;
 use crate::domain::repository::{ChallengeRepository, RateLimitRepository, PowSessionRepository};
-use crate::presentation::handlers::{extract_client_ip, extract_fingerprint};
+use crate::error::PowError;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use platform::client::{extract_client_ip, extract_fingerprint};
 use std::sync::Arc;
 
 /// Middleware state
@@ -40,7 +41,7 @@ where
 
     let fingerprint = match extract_fingerprint(headers, client_ip) {
         Ok(fp) => fp,
-        Err(e) => return Err(e.into_response()),
+        Err(e) => return Err(PowError::from(e).into_response()),
     };
 
     let token = platform::cookie::extract_cookie(headers, &state.config.session_cookie_name);
