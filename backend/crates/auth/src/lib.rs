@@ -62,4 +62,3 @@ pub mod router {
 pub mod middleware {
     pub use crate::presentation::middleware::*;
 }
-

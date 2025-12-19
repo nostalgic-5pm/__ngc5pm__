@@ -210,7 +210,7 @@ where
         use sha2::Sha256;
 
         let session_id = session.session_id.to_string();
-        
+
         // Create HMAC signature
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.config.session_secret)
             .expect("HMAC can take key of any size");

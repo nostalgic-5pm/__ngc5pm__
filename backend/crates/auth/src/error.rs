@@ -109,9 +109,9 @@ impl AuthError {
             | AuthError::InvalidTwoFactorCode => ErrorKind::Unauthorized,
             AuthError::AccountLocked => ErrorKind::Forbidden,
             AuthError::AccountDisabled => ErrorKind::Forbidden,
-            AuthError::TwoFactorRequired | AuthError::TwoFactorNotSetup | AuthError::EmailRequired => {
-                ErrorKind::UnprocessableEntity
-            }
+            AuthError::TwoFactorRequired
+            | AuthError::TwoFactorNotSetup
+            | AuthError::EmailRequired => ErrorKind::UnprocessableEntity,
             AuthError::MissingHeader(_) | AuthError::PasswordValidation(_) => ErrorKind::BadRequest,
             AuthError::Database(_) | AuthError::Internal(_) => ErrorKind::InternalServerError,
         }

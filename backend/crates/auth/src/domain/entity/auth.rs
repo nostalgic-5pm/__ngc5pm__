@@ -77,8 +77,7 @@ impl Auth {
 
         // Lock account after too many failures
         if self.login_failed_count >= Self::MAX_LOGIN_FAILURES {
-            self.locked_until =
-                Some(now + chrono::Duration::minutes(Self::LOCKOUT_MINUTES));
+            self.locked_until = Some(now + chrono::Duration::minutes(Self::LOCKOUT_MINUTES));
         }
     }
 
