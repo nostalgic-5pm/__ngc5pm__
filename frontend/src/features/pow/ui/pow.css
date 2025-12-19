@@ -1,0 +1,300 @@
+/* Pow overlay base
+   - /Index を背面に残して blur で見せる
+*/
+
+.overlayRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 56px 24px;
+
+  /* 透明幕 + 背景ぼかし */
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+}
+
+.overlayCard {
+  position: relative;
+  width: min(1120px, calc(100vw - 96px));
+
+  background: rgba(246, 243, 235, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.4);
+
+  padding: 26px 44px 22px;
+}
+
+/* =========================
+   吊り線（上の2本の線）とピン
+   ========================= */
+
+.hangerLine {
+  position: absolute;
+  top: -1200px;
+  height: 1200px;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.hangerLine.left {
+  left: 38%;
+}
+.hangerLine.right {
+  left: 62%;
+}
+
+.hangerPin {
+  position: absolute;
+  top: -12px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95), rgba(130, 0, 0, 0.95));
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.hangerPin.left {
+  left: calc(38% - 9px);
+}
+.hangerPin.right {
+  left: calc(62% - 9px);
+}
+
+/* =========================
+   Header
+   ========================= */
+
+.overlayCaption {
+  text-align: left;
+  color: rgba(0, 0, 0, 0.55);
+  letter-spacing: 0.5px;
+  text-decoration: underline;
+}
+
+.overlayTitle {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+/* 上の罫線デザイン（細線＋両端黒丸） */
+.overlayRule {
+  position: relative;
+  margin: 12px 0 10px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.overlayRule::before,
+.overlayRule::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.9);
+  transform: translateY(-50%);
+}
+
+.overlayRule::before {
+  left: 0;
+}
+.overlayRule::after {
+  right: 0;
+}
+
+/* 下側の罫線：同じデザインを使いつつ余白だけ調整 */
+.overlayRuleBottom {
+  margin: 18px 0 10px;
+}
+
+.overlaySub {
+  text-align: center;
+  color: rgba(0, 0, 0, 0.7);
+  padding: 0 40px;
+}
+
+/* =========================
+   Progress
+   ========================= */
+
+.progressRow {
+  margin-top: 22px;
+  padding: 0 40px;
+}
+
+.statusText {
+  margin-bottom: 8px;
+}
+
+.progressBarWrap {
+  position: relative;
+}
+
+.progressBar {
+  height: 24px;
+  border-radius: 3px;
+  border: none;
+  background: #f8f7f4;
+  overflow: hidden;
+
+  /* 紙がふんわり浮いた影 */
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.08),
+    0 2px 2px rgba(0, 0, 0, 0.08),
+    0 4px 4px rgba(0, 0, 0, 0.08),
+    0 8px 8px rgba(0, 0, 0, 0.08),
+    0 16px 16px rgba(0, 0, 0, 0.05);
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #b8e6a3 0%, #8ed674 100%);
+  border-radius: 2px;
+}
+
+.qedSquare {
+  position: absolute;
+  right: -8px;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* =========================
+   Mid row layout
+   ========================= */
+
+.midRow {
+  margin-top: 18px;
+  padding: 0 40px;
+  display: grid;
+  /* 左右対称にするため同じ幅を指定 */
+  grid-template-columns: 180px 1fr 180px;
+  gap: 22px;
+  align-items: center;
+  justify-items: center;
+}
+
+/* 左右の縦積み */
+.metricCol {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  width: 100%;
+}
+
+.metricColRight {
+  justify-items: end;
+}
+
+.metricBox {
+  background: #f8f7f4;
+  border: none;
+  padding: 14px 16px;
+  position: relative;
+
+  /* 全ての枠を同じサイズに統一 */
+  width: 180px;
+  height: 68px;
+  box-sizing: border-box;
+
+  /* 紙がふんわり浮いたようなシンプルな影 */
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.11),
+    0 2px 2px rgba(0, 0, 0, 0.11),
+    0 4px 4px rgba(0, 0, 0, 0.11),
+    0 6px 8px rgba(0, 0, 0, 0.11),
+    0 8px 16px rgba(0, 0, 0, 0.11);
+}
+
+/* 紙の右側がふんわり浮いたデザイン - ::beforeは不要なので削除 */
+
+.metricLabel {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.metricValue {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* =========================
+   Illustration
+   ========================= */
+
+.illustrationBox {
+  display: flex;
+  justify-content: center;
+}
+
+.illustFrame {
+  width: 240px;
+  height: 140px;
+  border: 1px solid rgba(0, 0, 0, 0.75);
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* PixelScene canvas */
+.pixelCanvas {
+  width: 240px;
+  height: 140px;
+  image-rendering: pixelated;
+}
+
+/* =========================
+   Footer
+   ========================= */
+
+.overlayFooter {
+  margin-top: 10px;
+  padding-top: 8px;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+/* ステータス見出しは常に大きめ */
+.footerTitle {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+
+/* 色切替（phaseは PowOverlay.tsx の data-phase から） */
+.overlayRoot[data-phase="done"] .footerTitle {
+  color: #1c7d1c;
+}
+.overlayRoot[data-phase="error"] .footerTitle {
+  color: #b91c1c;
+}
+.overlayRoot[data-phase="submitting"] .footerTitle {
+  color: #0b2a3a; /* verifying 系（濃紺） */
+}
+.overlayRoot[data-phase="computing"] .footerTitle {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.footerStats {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}

@@ -1,0 +1,35 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "tamasfe.even-better-toml",
+    "redhat.vscode-yaml",
+
+    "eamodio.gitlens",
+    "github.vscode-github-actions",
+    "ms-azuretools.vscode-containers",
+
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+    "shd101wyy.markdown-preview-enhanced",
+    "quarto.quarto",
+    "ms-toolsai.jupyter",
+
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    "bradymholt.pgformatter",
+    "grapecity.gc-excelviewer",
+    "janisdd.vscode-edit-csv",
+    "mechatroner.rainbow-csv",
+
+    "humao.rest-client",
+    "gruntfuggly.todo-tree",
+    "mutantdino.resourcemonitor",
+    "oderwat.indent-rainbow"
+  ]
+}

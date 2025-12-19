@@ -1,0 +1,42 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Internal crates
+pow = { path = "../../crates/pow" }
+kernel = { path = "../../crates/shared", features = ["full"] }
+
+# Web framework
+axum = { version = "0.8.7", features = ["macros"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.8", features = ["cors", "trace"] }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Database
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio",
+    "postgres",
+    "uuid",
+    "chrono",
+] }
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+# Tracing
+tracing = "0.1.43"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+# Configuration
+dotenvy = "0.15.7"
+
+# Error handling
+anyhow = "1.0.100"
+
+# Cryptography
+base64 = "0.22.1"

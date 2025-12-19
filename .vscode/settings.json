@@ -1,0 +1,129 @@
+{
+  "editor.minimap.enabled": false,
+  "editor.accessibilitySupport": "off",
+  "editor.smoothScrolling": false,
+
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+
+  "files.encoding": "utf8",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  // Font settings
+  "editor.fontFamily": "Moralerspace Argon HWJPDOC",
+  "editor.fontLigatures": true,
+  "editor.semanticTokenColorCustomizations": {
+    "enabled": true,
+    "rules": {
+      "*.mutable": {
+        "underline": true
+      }
+    }
+  },
+
+  "editor.insertSpaces": true,
+  "editor.tabSize": 4,
+  "editor.detectIndentation": false,
+
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.hg/store/**": true,
+    "**/node_modules/**": true,
+    "**/tmp/**": true,
+    "**/target/**": true
+  },
+
+  // 保存時の自動コードアクション（lint 系は explicit 運用のまま維持）
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.fixAll.markdownlint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  "prettier.printWidth": 120,
+
+  // ===== Rust =====
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+
+  // ===== JavaScript / TypeScript 系 =====
+  // → フォーマッタは Prettier に統一、ESLint は fixAll のみ
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.maxTokenizationLineLength": 2500
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.maxTokenizationLineLength": 2500
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ===== CSS =====
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ===== SQL =====
+  "[sql]": {
+    "editor.defaultFormatter": "bradymholt.pgformatter",
+    "editor.insertSpaces": true,
+    "files.insertFinalNewline": true
+  },
+  "pgFormatter.functionCase": "lowercase",
+  "pgFormatter.keywordCase": "uppercase",
+  "pgFormatter.typeCase": "uppercase",
+
+  // ===== JSON / JSONC =====
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.autoIndent": "advanced"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.autoIndent": "advanced"
+  },
+
+  // ===== YAML =====
+  // → Quarto や CI 設定ファイル用に Prettier を利用
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // ===== TOML =====
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml",
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "files.insertFinalNewline": true
+  },
+
+  // ===== Markdown =====
+  // → Prettier は使わず、markdownlint だけ走らせる運用に寄せる
+  "[markdown]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": false,
+    "editor.wordWrap": "on"
+  },
+  "markdownlint.run": "onSave",
+  "markdownlint.config": {
+    "MD024": false,
+    "MD029": false,
+    "MD036": false
+  },
+
+  // ===== Quarto (.qmd) =====
+  // → 将来の Quarto 導入を見越して、フォーマットは明示的にオフ
+  "[quarto]": {
+    "editor.defaultFormatter": null,
+    "editor.wordWrap": "on"
+  }
+}
