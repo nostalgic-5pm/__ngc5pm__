@@ -70,7 +70,20 @@ impl CookieConfig {
 
     /// Build Set-Cookie header for deletion (expired)
     pub fn build_delete_cookie(&self) -> String {
-        format!("{}=; HttpOnly; Path={}; Max-Age=0", self.name, self.path)
+        let mut cookie = format!("{}=", self.name);
+
+        if self.http_only {
+            cookie.push_str("; HttpOnly");
+        }
+        if self.secure {
+            cookie.push_str("; Secure");
+        }
+        cookie.push_str(&format!("; SameSite={}", self.same_site.as_str()));
+        cookie.push_str(&format!("; Path={}", self.path));
+        cookie.push_str("; Max-Age=0");
+        cookie.push_str("; Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+
+        cookie
     }
 }
 

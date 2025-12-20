@@ -36,12 +36,9 @@ pub struct AuthSession {
 }
 
 impl AuthSession {
-    /// Session TTL without "Remember Me" (12 hours)
-    pub const SESSION_TTL_SHORT: Duration = Duration::hours(12);
-    /// Session TTL with "Remember Me" (1 week)
-    pub const SESSION_TTL_LONG: Duration = Duration::weeks(1);
-
     /// Create a new auth session
+    ///
+    /// TTL is provided by the application layer (config), not hard-coded here.
     pub fn new(
         user_id: UserId,
         public_id: PublicId,
@@ -50,13 +47,9 @@ impl AuthSession {
         fingerprint_hash: Vec<u8>,
         client_ip: Option<String>,
         user_agent: Option<String>,
+        ttl: Duration,
     ) -> Self {
         let now = Utc::now();
-        let ttl = if remember_me {
-            Self::SESSION_TTL_LONG
-        } else {
-            Self::SESSION_TTL_SHORT
-        };
 
         Self {
             session_id: Uuid::new_v4(),
@@ -90,14 +83,21 @@ impl AuthSession {
     }
 
     /// Extend session if "Remember Me" is enabled
-    pub fn extend_if_needed(&mut self) {
-        if self.remember_me {
-            let now = Utc::now();
-            let new_expires = (now + Self::SESSION_TTL_LONG).timestamp_millis();
-            // Only extend if less than half the TTL remains
-            if self.expires_at_ms < (now + Self::SESSION_TTL_LONG / 2).timestamp_millis() {
-                self.expires_at_ms = new_expires;
-            }
+    ///
+    /// The extension policy is intentionally simple:
+    /// - only applies to remember_me sessions
+    /// - extend to (now + ttl_long) when remaining time falls below half of ttl_long
+    pub fn extend_if_needed(&mut self, ttl_long: Duration) {
+        if !self.remember_me {
+            return;
+        }
+
+        let now = Utc::now();
+        let new_expires = (now + ttl_long).timestamp_millis();
+
+        // Only extend if less than half the TTL remains
+        if self.expires_at_ms < (now + (ttl_long / 2)).timestamp_millis() {
+            self.expires_at_ms = new_expires;
         }
     }
 }

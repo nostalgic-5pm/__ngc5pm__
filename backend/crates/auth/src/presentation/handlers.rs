@@ -1,17 +1,17 @@
 //! HTTP Handlers
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::IntoResponse;
-use axum::Json;
 use std::sync::Arc;
 
 use platform::client::{extract_client_ip, extract_fingerprint};
 
 use crate::application::config::{AuthConfig, SameSite};
 use crate::application::{
-    CheckSessionUseCase, SignInInput, SignInUseCase, SignOutUseCase,
-    SignUpInput, SignUpUseCase, TotpSetupUseCase,
+    CheckSessionUseCase, SignInInput, SignInUseCase, SignOutUseCase, SignUpInput, SignUpUseCase,
+    TotpSetupUseCase,
 };
 use crate::domain::repository::{AuthRepository, AuthSessionRepository, UserRepository};
 use crate::error::{AuthError, AuthResult};
@@ -80,10 +80,13 @@ where
         state.config.clone(),
     );
 
+    // req のムーブ後も使えるように remember_me を退避
+    let remember_me = req.remember_me;
+
     let input = SignInInput {
         identifier: req.identifier,
         password: req.password,
-        remember_me: req.remember_me,
+        remember_me,
         totp_code: req.totp_code,
     };
 
@@ -101,8 +104,8 @@ where
             .into_response());
     }
 
-    // Success - set session cookie
-    let cookie = build_session_cookie(&state.config, &output.session_token);
+    // Success - set session cookie (Max-Age must match remember_me)
+    let cookie = build_session_cookie(&state.config, &output.session_token, remember_me);
 
     Ok((
         StatusCode::OK,
@@ -203,14 +206,13 @@ where
         .ok_or(AuthError::SessionInvalid)?;
 
     let check_use_case = CheckSessionUseCase::new(state.repo.clone(), state.config.clone());
-    let session = check_use_case.get_session(&token, &fingerprint.hash).await?;
+    let session = check_use_case
+        .get_session(&token, &fingerprint.hash)
+        .await?;
 
     // Setup TOTP
-    let use_case = TotpSetupUseCase::new(
-        state.repo.clone(),
-        state.repo.clone(),
-        state.config.clone(),
-    );
+    let use_case =
+        TotpSetupUseCase::new(state.repo.clone(), state.repo.clone(), state.config.clone());
 
     let output = use_case.setup(&session.user_id).await?;
 
@@ -239,14 +241,13 @@ where
         .ok_or(AuthError::SessionInvalid)?;
 
     let check_use_case = CheckSessionUseCase::new(state.repo.clone(), state.config.clone());
-    let session = check_use_case.get_session(&token, &fingerprint.hash).await?;
+    let session = check_use_case
+        .get_session(&token, &fingerprint.hash)
+        .await?;
 
     // Verify TOTP
-    let use_case = TotpSetupUseCase::new(
-        state.repo.clone(),
-        state.repo.clone(),
-        state.config.clone(),
-    );
+    let use_case =
+        TotpSetupUseCase::new(state.repo.clone(), state.repo.clone(), state.config.clone());
 
     use_case.verify(&session.user_id, &req.code).await?;
 
@@ -271,14 +272,13 @@ where
         .ok_or(AuthError::SessionInvalid)?;
 
     let check_use_case = CheckSessionUseCase::new(state.repo.clone(), state.config.clone());
-    let session = check_use_case.get_session(&token, &fingerprint.hash).await?;
+    let session = check_use_case
+        .get_session(&token, &fingerprint.hash)
+        .await?;
 
     // Disable TOTP
-    let use_case = TotpSetupUseCase::new(
-        state.repo.clone(),
-        state.repo.clone(),
-        state.config.clone(),
-    );
+    let use_case =
+        TotpSetupUseCase::new(state.repo.clone(), state.repo.clone(), state.config.clone());
 
     use_case.disable(&session.user_id, &req.code).await?;
 
@@ -293,12 +293,18 @@ fn extract_session_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     platform::cookie::extract_cookie(headers, name)
 }
 
-fn build_session_cookie(config: &AuthConfig, token: &str) -> String {
+fn build_session_cookie(config: &AuthConfig, token: &str, remember_me: bool) -> String {
+    let max_age = if remember_me {
+        config.session_ttl_long.as_secs()
+    } else {
+        config.session_ttl_short.as_secs()
+    };
+
     let mut parts = vec![
         format!("{}={}", config.session_cookie_name, token),
         "HttpOnly".to_string(),
         "Path=/".to_string(),
-        format!("Max-Age={}", config.session_ttl_long.as_secs()),
+        format!("Max-Age={}", max_age),
     ];
 
     if config.cookie_secure {
@@ -315,8 +321,23 @@ fn build_session_cookie(config: &AuthConfig, token: &str) -> String {
 }
 
 fn build_clear_cookie(config: &AuthConfig) -> String {
-    format!(
-        "{}=; HttpOnly; Path=/; Max-Age=0",
-        config.session_cookie_name
-    )
+    let mut parts = vec![
+        format!("{}=", config.session_cookie_name),
+        "HttpOnly".to_string(),
+        "Path=/".to_string(),
+        "Max-Age=0".to_string(),
+        "Expires=Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
+    ];
+
+    if config.cookie_secure {
+        parts.push("Secure".to_string());
+    }
+
+    match config.cookie_same_site {
+        SameSite::Strict => parts.push("SameSite=Strict".to_string()),
+        SameSite::Lax => parts.push("SameSite=Lax".to_string()),
+        SameSite::None => parts.push("SameSite=None".to_string()),
+    }
+
+    parts.join("; ")
 }

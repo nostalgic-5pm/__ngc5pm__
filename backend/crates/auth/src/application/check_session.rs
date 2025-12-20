@@ -81,7 +81,11 @@ where
         // Update last activity (fire and forget)
         let mut session = session;
         session.touch();
-        session.extend_if_needed();
+
+        // Extend remember-me sessions based on config
+        let ttl_long = chrono::Duration::from_std(self.config.session_ttl_long)
+            .map_err(|e| AuthError::Internal(format!("Invalid session TTL: {e}")))?;
+        session.extend_if_needed(ttl_long);
 
         // Update in background
         let session_clone = session.clone();

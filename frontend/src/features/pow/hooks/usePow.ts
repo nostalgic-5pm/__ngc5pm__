@@ -22,6 +22,8 @@ export type PowVm = {
 };
 
 export type UsePowOptions = {
+  /** If false, do not issue a challenge and do not start worker */
+  enabled?: boolean;
   mode?: PowMode;
   onSuccess?: () => Promise<void> | void;
 };
@@ -53,6 +55,7 @@ function getSimGoalFromUrl(): number {
 }
 
 export function usePow(options: UsePowOptions = {}) {
+  const enabled = options.enabled ?? true;
   const resolvedMode = useMemo(() => options.mode ?? getPowModeFromUrl(), [options.mode]);
   const onSuccess = options.onSuccess;
 
@@ -74,11 +77,35 @@ export function usePow(options: UsePowOptions = {}) {
     return Math.pow(2, vm.difficulty);
   }, [vm.difficulty]);
 
-  // Issue challenge from Backend
+  // If disabled, ensure worker is stopped and state is not "running"
   useEffect(() => {
+    if (enabled) return;
+    setChallenge(null);
+    setVm((p) => ({
+      ...p,
+      phase: "done",
+      statusText: "skipped",
+      difficulty: null,
+      elapsedMs: 0,
+      totalHashes: 0,
+      hashRate: 0,
+      estimatedRemainSec: null,
+      progressRatio: 1,
+      errorCode: undefined,
+    }));
+  }, [enabled]);
+
+  // Issue challenge from Backend (only when enabled)
+  useEffect(() => {
+    if (!enabled) return;
+
+    let cancelled = false;
+
     (async () => {
       try {
         const c = await powApi.issue();
+        if (cancelled) return;
+
         setChallenge(c);
         setVm((p) => ({
           ...p,
@@ -90,8 +117,11 @@ export function usePow(options: UsePowOptions = {}) {
           hashRate: 0,
           estimatedRemainSec: null,
           progressRatio: 0,
+          errorCode: undefined,
         }));
       } catch (e) {
+        if (cancelled) return;
+
         const errorCode = e instanceof PowApiError ? e.code : "network";
         setVm((p) => ({
           ...p,
@@ -101,7 +131,11 @@ export function usePow(options: UsePowOptions = {}) {
         }));
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
 
   // Run worker when challenge is available
   useEffect(() => {
@@ -169,7 +203,7 @@ export function usePow(options: UsePowOptions = {}) {
         } catch (e) {
           const errorCode = e instanceof PowApiError ? e.code : "network";
           let statusText = "error";
-          
+
           // エラーコードに応じたメッセージ
           if (e instanceof PowApiError) {
             switch (e.code) {
@@ -184,7 +218,7 @@ export function usePow(options: UsePowOptions = {}) {
                 break;
             }
           }
-          
+
           setVm((p) => ({ ...p, phase: "error", statusText, errorCode }));
         }
       }

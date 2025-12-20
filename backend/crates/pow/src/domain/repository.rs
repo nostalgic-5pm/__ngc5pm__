@@ -14,7 +14,13 @@ pub trait LocalChallengeRepository {
     async fn create(&self, challenge: &Challenge) -> PowResult<()>;
 
     /// Consume a challenge atomically (delete and return if valid)
-    async fn consume(&self, challenge_id: Uuid) -> PowResult<Option<Challenge>>;
+    ///
+    /// This must be bound to the request fingerprint to prevent replay/hijack.
+    async fn consume(
+        &self,
+        challenge_id: Uuid,
+        fingerprint: &ClientFingerprint,
+    ) -> PowResult<Option<Challenge>>;
 }
 
 /// PowSession repository trait

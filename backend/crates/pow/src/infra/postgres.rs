@@ -88,13 +88,19 @@ impl ChallengeRepository for PgPowRepository {
         Ok(())
     }
 
-    async fn consume(&self, challenge_id: Uuid) -> PowResult<Option<Challenge>> {
+    async fn consume(
+        &self,
+        challenge_id: Uuid,
+        fingerprint: &ClientFingerprint,
+    ) -> PowResult<Option<Challenge>> {
         let now_ms = Utc::now().timestamp_millis();
 
         let row = sqlx::query_as::<_, ChallengeRow>(
             r#"
                 DELETE FROM pow_challenges
-                WHERE pow_challenge_id = $1 AND expires_at_ms > $2
+                WHERE pow_challenge_id = $1
+                    AND expires_at_ms > $2
+                    AND client_fingerprint_hash = $3
                 RETURNING
                     pow_challenge_id,
                     pow_challenge_bytes,
@@ -107,6 +113,7 @@ impl ChallengeRepository for PgPowRepository {
         )
         .bind(challenge_id)
         .bind(now_ms)
+        .bind(fingerprint.hash_vec())
         .fetch_optional(&self.pool)
         .await?;
 
@@ -116,20 +123,28 @@ impl ChallengeRepository for PgPowRepository {
                 Ok(Some(r.into_challenge()?))
             }
             None => {
-                // Check if it exists but expired
-                let exists = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS(SELECT 1 FROM pow_challenges WHERE pow_challenge_id = $1)",
+                // Distinguish expired vs "not consumable" without leaking more detail
+                let expires_at: Option<i64> = sqlx::query_scalar(
+                    "SELECT expires_at_ms FROM pow_challenges WHERE pow_challenge_id = $1",
                 )
                 .bind(challenge_id)
-                .fetch_one(&self.pool)
+                .fetch_optional(&self.pool)
                 .await?;
 
-                if exists {
-                    tracing::warn!(challenge_id = %challenge_id, "Challenge expired");
-                    Err(PowError::ChallengeExpired)
-                } else {
-                    tracing::warn!(challenge_id = %challenge_id, "Challenge not found");
-                    Ok(None)
+                match expires_at {
+                    Some(expires_at_ms) if expires_at_ms <= now_ms => {
+                        tracing::warn!(challenge_id = %challenge_id, "Challenge expired");
+                        Err(PowError::ChallengeExpired)
+                    }
+                    Some(_) => {
+                        // Exists and not expired, but fingerprint mismatch (or other constraint)
+                        tracing::warn!(challenge_id = %challenge_id, "Challenge not consumable");
+                        Ok(None)
+                    }
+                    None => {
+                        tracing::warn!(challenge_id = %challenge_id, "Challenge not found");
+                        Ok(None)
+                    }
                 }
             }
         }

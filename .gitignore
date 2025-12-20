@@ -43,6 +43,7 @@ lerna-debug.log*
 # Temporary files
 # ============================================================================
 temp.md
+idea.md
 temp_files/
 *.tmp
 *.swp

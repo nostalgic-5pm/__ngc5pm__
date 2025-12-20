@@ -179,10 +179,25 @@ fn build_session_cookie(config: &PowConfig, token: &str) -> String {
 }
 
 fn build_clear_cookie(config: &PowConfig) -> String {
-    format!(
-        "{}=; HttpOnly; Path=/; Max-Age=0",
-        config.session_cookie_name
-    )
+    let mut parts = vec![
+        format!("{}=", config.session_cookie_name),
+        "HttpOnly".to_string(),
+        "Path=/".to_string(),
+        "Max-Age=0".to_string(),
+        "Expires=Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
+    ];
+
+    if config.cookie_secure {
+        parts.push("Secure".to_string());
+    }
+
+    match config.cookie_same_site {
+        SameSite::Strict => parts.push("SameSite=Strict".to_string()),
+        SameSite::Lax => parts.push("SameSite=Lax".to_string()),
+        SameSite::None => parts.push("SameSite=None".to_string()),
+    }
+
+    parts.join("; ")
 }
 
 fn extract_session_cookie(headers: &HeaderMap, cookie_name: &str) -> Option<String> {

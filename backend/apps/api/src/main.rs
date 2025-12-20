@@ -4,7 +4,7 @@
 //! Uses `anyhow` for startup errors, but application-level
 //! errors should use `kernel::error::AppError`.
 
-use auth::PgAuthRepository;
+use auth::{AuthConfig, PgAuthRepository, auth_router};
 use axum::{
     Router, http,
     http::{Method, header},
@@ -94,6 +94,41 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // Auth configuration
+    let auth_config = if cfg!(debug_assertions) {
+        AuthConfig::development()
+    } else {
+        let secret_b64 =
+            env::var("AUTH_SESSION_SECRET").expect("AUTH_SESSION_SECRET must be set in production");
+        let secret_bytes = Engine::decode(&general_purpose::STANDARD, &secret_b64)?;
+        if secret_bytes.len() != 32 {
+            anyhow::bail!(
+                "AUTH_SESSION_SECRET must decode to exactly 32 bytes (got {} bytes)",
+                secret_bytes.len()
+            );
+        }
+        let mut secret = [0u8; 32];
+        secret.copy_from_slice(&secret_bytes);
+
+        // Optional password pepper (base64). If set, it must decode to non-empty bytes.
+        let pepper = match env::var("AUTH_PASSWORD_PEPPER_B64") {
+            Ok(v) if !v.trim().is_empty() => {
+                let b = Engine::decode(&general_purpose::STANDARD, v.trim())?;
+                if b.is_empty() {
+                    anyhow::bail!("AUTH_PASSWORD_PEPPER_B64 must decode to non-empty bytes");
+                }
+                Some(b)
+            }
+            _ => None,
+        };
+
+        AuthConfig {
+            session_secret: secret,
+            password_pepper: pepper,
+            ..AuthConfig::default()
+        }
+    };
+
     // PoW configuration
     let pow_config = if cfg!(debug_assertions) {
         PowConfig::development()
@@ -102,6 +137,12 @@ async fn main() -> anyhow::Result<()> {
         let secret_b64 =
             env::var("POW_SESSION_SECRET").expect("POW_SESSION_SECRET must be set in production");
         let secret_bytes = Engine::decode(&general_purpose::STANDARD, &secret_b64)?;
+        if secret_bytes.len() != 32 {
+            anyhow::bail!(
+                "POW_SESSION_SECRET must decode to exactly 32 bytes (got {} bytes)",
+                secret_bytes.len()
+            );
+        }
         let mut secret = [0u8; 32];
         secret.copy_from_slice(&secret_bytes);
         PowConfig {
@@ -111,6 +152,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let pow_store = PowStore::new(pool.clone());
+    let auth_store = PgAuthRepository::new(pool.clone());
 
     // CORS configuration
     let frontend_origins = env::var("FRONTEND_ORIGINS")
@@ -138,6 +180,7 @@ async fn main() -> anyhow::Result<()> {
     // Build router
     let app = Router::new()
         .nest("/api/pow", pow_router(pow_store, pow_config))
+        .nest("/api/auth", auth_router(auth_store, auth_config))
         .layer(TraceLayer::new_for_http())
         .layer(cors);
 

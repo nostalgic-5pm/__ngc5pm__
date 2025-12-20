@@ -7,9 +7,7 @@ use std::sync::Arc;
 use crate::application::config::AuthConfig;
 use crate::domain::entity::auth_session::AuthSession;
 use crate::domain::repository::{AuthRepository, AuthSessionRepository, UserRepository};
-use crate::domain::value_object::{
-    email::Email, user_name::UserName, user_password::RawPassword,
-};
+use crate::domain::value_object::{email::Email, user_name::UserName, user_password::RawPassword};
 use crate::error::{AuthError, AuthResult};
 
 /// Sign in input
@@ -78,8 +76,7 @@ where
         // Try to find user by user_name or email
         let user = if input.identifier.contains('@') {
             // Looks like email
-            let email = Email::new(&input.identifier)
-                .map_err(|_| AuthError::InvalidCredentials)?;
+            let email = Email::new(&input.identifier).map_err(|_| AuthError::InvalidCredentials)?;
             self.find_user_by_email(&email).await?
         } else {
             // Treat as user name
@@ -108,8 +105,8 @@ where
         }
 
         // Verify password
-        let raw_password = RawPassword::new(input.password)
-            .map_err(|_| AuthError::InvalidCredentials)?;
+        let raw_password =
+            RawPassword::new(input.password).map_err(|_| AuthError::InvalidCredentials)?;
 
         let password_valid = auth
             .password_hash
@@ -166,7 +163,16 @@ where
         user.record_login();
         self.user_repo.update(&user).await?;
 
-        // Create session
+        // Create session (TTL is driven by config to keep DB/session/cookie consistent)
+        let ttl_std = if input.remember_me {
+            self.config.session_ttl_long
+        } else {
+            self.config.session_ttl_short
+        };
+
+        let ttl = chrono::Duration::from_std(ttl_std)
+            .map_err(|e| AuthError::Internal(format!("Invalid session TTL: {e}")))?;
+
         let session = AuthSession::new(
             user.user_id.clone(),
             user.public_id.clone(),
@@ -175,6 +181,7 @@ where
             fingerprint.hash_vec(),
             fingerprint.ip_string(),
             fingerprint.user_agent.clone(),
+            ttl,
         );
 
         self.session_repo.create(&session).await?;
@@ -197,7 +204,10 @@ where
     }
 
     /// Find user by email (requires joining with auth table)
-    async fn find_user_by_email(&self, _email: &Email) -> AuthResult<Option<crate::domain::entity::user::User>> {
+    async fn find_user_by_email(
+        &self,
+        _email: &Email,
+    ) -> AuthResult<Option<crate::domain::entity::user::User>> {
         // TODO: Implement email lookup
         // For now, email login is not supported
         Ok(None)

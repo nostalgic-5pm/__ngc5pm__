@@ -51,8 +51,12 @@ export function PowGate({ children }: Props) {
     })();
   }, [debug.force, debug.reset]);
 
-  // Only run PoW hook if session is not valid
+  // Determine whether PoW is required (avoid issuing challenge before session check completes)
+  const needsPow = sessionChecked ? !sessionValid || debug.force : false;
+
+  // Run PoW only when needed
   const pow = usePow({
+    enabled: needsPow,
     mode: debug.mode,
   });
 
@@ -62,7 +66,6 @@ export function PowGate({ children }: Props) {
   }
 
   // If session is valid (and not force mode), skip PoW
-  const needsPow = !sessionValid || debug.force;
   const open = needsPow && pow.phase !== "done";
 
   const vm: PowOverlayVm = {

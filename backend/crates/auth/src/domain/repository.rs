@@ -2,7 +2,9 @@
 //!
 //! Interfaces for data persistence. Implementation is in infrastructure layer.
 
-use crate::domain::entity::{auth::Auth, auth_session::AuthSession, user::User, user_details::UserDetails};
+use crate::domain::entity::{
+    auth::Auth, auth_session::AuthSession, user::User, user_details::UserDetails,
+};
 use crate::domain::value_object::{public_id::PublicId, user_id::UserId, user_name::UserName};
 use crate::error::AuthResult;
 use uuid::Uuid;
@@ -78,6 +80,7 @@ pub trait LocalAuthSessionRepository {
     async fn update(&self, session: &AuthSession) -> AuthResult<()>;
 
     /// Delete a session
+
     async fn delete(&self, session_id: Uuid) -> AuthResult<()>;
 
     /// Delete all sessions for a user (except current)

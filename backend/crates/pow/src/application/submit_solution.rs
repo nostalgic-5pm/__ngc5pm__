@@ -55,7 +55,7 @@ where
     pub async fn execute(
         &self,
         input: SubmitSolutionInput,
-        _fingerprint: ClientFingerprint,
+        fingerprint: ClientFingerprint,
     ) -> PowResult<SubmitSolutionOutput> {
         // Log telemetry (not used for verification)
         if let (Some(elapsed), Some(hashes)) = (input.elapsed_ms, input.total_hashes) {
@@ -70,12 +70,16 @@ where
         // Atomically consume the challenge
         let challenge = self
             .challenge_repo
-            .consume(input.challenge_id)
+            .consume(input.challenge_id, &fingerprint)
             .await?
             .ok_or(PowError::ChallengeNotFound)?;
 
         // Verify the solution
-        if !verify_pow(&challenge.challenge_bytes, input.nonce_u32, challenge.difficulty_bits) {
+        if !verify_pow(
+            &challenge.challenge_bytes,
+            input.nonce_u32,
+            challenge.difficulty_bits,
+        ) {
             tracing::warn!(
                 challenge_id = %input.challenge_id,
                 nonce = input.nonce_u32,
